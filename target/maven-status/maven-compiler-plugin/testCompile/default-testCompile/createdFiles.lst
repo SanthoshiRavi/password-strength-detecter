@@ -1,0 +1,8 @@
+com\enterprise\passwordchecker\service\PasswordStrengthServiceTest$StrengthClassificationTests.class
+com\enterprise\passwordchecker\service\PasswordStrengthServiceTest$SuggestionTests.class
+com\enterprise\passwordchecker\service\PasswordStrengthServiceTest$CompositionTests.class
+com\enterprise\passwordchecker\service\PasswordStrengthServiceTest$PolicyComplianceTests.class
+com\enterprise\passwordchecker\service\PasswordStrengthServiceTest$PatternDetectionTests.class
+com\enterprise\passwordchecker\service\PasswordStrengthServiceTest.class
+com\enterprise\passwordchecker\controller\PasswordStrengthControllerTest.class
+com\enterprise\passwordchecker\service\PasswordStrengthServiceTest$EntropyTests.class
