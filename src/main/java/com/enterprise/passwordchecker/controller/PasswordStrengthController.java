@@ -37,7 +37,7 @@ public class PasswordStrengthController {
 
     private final PasswordStrengthService passwordStrengthService;
     private final PasswordPolicyService passwordPolicyService;
-
+    // Added for git push check
     // ─────────────────────────────────────────────────────────────────────────
     // Single Evaluation
     // ─────────────────────────────────────────────────────────────────────────
