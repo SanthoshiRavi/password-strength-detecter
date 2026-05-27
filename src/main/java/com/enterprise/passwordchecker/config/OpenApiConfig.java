@@ -77,12 +77,19 @@ public class OpenApiConfig {
 
     private List<Server> buildServers() {
         return List.of(
+
+                new Server()
+                        .url("http://13.235.2.214:8443")
+                        .description("EC2 Deployment Server"),
+
                 new Server()
                         .url("http://localhost:" + serverPort)
                         .description("Local Development"),
+
                 new Server()
                         .url("https://api-staging.enterprise.com")
                         .description("Staging Environment"),
+
                 new Server()
                         .url("https://api.enterprise.com")
                         .description("Production Environment")
