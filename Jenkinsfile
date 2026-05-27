@@ -6,7 +6,7 @@ pipeline {
         DOCKER_IMAGE = "santhr/password-checker:latest"
 
         EC2_USER = "ubuntu"
-        EC2_HOST = "13.235.2.214"
+        EC2_HOST = "13.207.89.26"
 
         SSH_CREDENTIALS = "ec2-ssh-key"
         DOCKERHUB_CREDS = "docker-token"
