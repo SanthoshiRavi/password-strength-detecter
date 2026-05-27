@@ -257,7 +257,7 @@ public class PasswordStrengthController {
         return ResponseEntity.ok(policy);
     }
 
-
+    // health check endpoint
     @Operation(
             summary = "API health check",
             description = "Lightweight liveness probe.",
