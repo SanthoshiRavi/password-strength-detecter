@@ -2,6 +2,8 @@
 # Maven
 # =========================
 target/
+*.jar
+*.class
 !.mvn/wrapper/maven-wrapper.jar
 
 # Keep Maven Wrapper
