@@ -12,10 +12,6 @@ pipeline {
         DOCKERHUB_CREDS = "docker-token"
     }
 
-    tools {
-        maven 'Maven'
-    }
-
     options {
         timestamps()
         disableConcurrentBuilds()
