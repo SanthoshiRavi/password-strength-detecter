@@ -79,7 +79,7 @@ public class OpenApiConfig {
         return List.of(
 
                 new Server()
-                        .url("http://13.235.2.214:8443")
+                        .url("http://13.207.89.26:8443")
                         .description("EC2 Deployment Server"),
 
                 new Server()
