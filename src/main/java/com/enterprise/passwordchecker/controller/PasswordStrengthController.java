@@ -257,9 +257,6 @@ public class PasswordStrengthController {
         return ResponseEntity.ok(policy);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Health Check
-    // ─────────────────────────────────────────────────────────────────────────
 
     @Operation(
             summary = "API health check",
