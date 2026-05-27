@@ -28,7 +28,7 @@ logs/
 spring.log
 
 # =========================
-# Environment Variables
+# Environment Files
 # =========================
 .env
 .env.*
@@ -40,10 +40,12 @@ application-local.properties
 application-secret.properties
 
 # =========================
-# OS Files
+# Test Reports
 # =========================
-.DS_Store
-Thumbs.db
+surefire-reports/
+failsafe-reports/
+TEST-*.xml
+*.txt
 
 # =========================
 # Compiled Files
@@ -51,13 +53,13 @@ Thumbs.db
 *.class
 
 # =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
 # Temporary Files
 # =========================
 *.tmp
 *.temp
-
-# =========================
-# Test Reports
-# =========================
-surefire-reports/
-failsafe-reports/
