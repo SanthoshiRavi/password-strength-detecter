@@ -110,7 +110,7 @@ pipeline {
 
                         docker run -d \
                             --name ${APP_NAME} \
-                            -p 8080:8080 \
+                            -p 8443:8443 \
                             --restart always \
                             ${DOCKER_IMAGE}
 
