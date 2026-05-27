@@ -1,164 +1,146 @@
 pipeline {
-agent any
-tools {
-    maven 'Maven'
-    jdk 'JDK21'
-}
+    agent any
 
-options {
-    timestamps()
-    disableConcurrentBuilds()
-    buildDiscarder(logRotator(
-        numToKeepStr: '10',
-        artifactNumToKeepStr: '10'
-    ))
-    timeout(time: 30, unit: 'MINUTES')
-}
+    environment {
+        APP_NAME = "password-checker"
+        DOCKER_IMAGE = "santhr/password-checker:latest"
 
-environment {
-    APP_NAME = 'password-strength-checker'
-    APP_VERSION = '1.0.0'
-    JAR_PATH = 'target/*.jar'
-    IMAGE_NAME = 'santhr/password-checker'
-    IMAGE_TAG = 'latest'
-}
+        EC2_USER = "ubuntu"
+        EC2_HOST = "13.235.2.214"
 
-stages {
-
-    stage('Checkout') {
-        steps {
-            echo '🔄 Pulling latest source code from GitHub...'
-            checkout scm
-        }
+        SSH_CREDENTIALS = "ec2-ssh-key"
+        DOCKERHUB_CREDS = "docker-token"
     }
 
-    stage('Show Environment') {
-        steps {
-            echo '📌 Verifying Java and Maven versions...'
-            bat 'java -version'
-            bat 'mvn -version'
-        }
+    tools {
+        maven 'Maven'
     }
 
-    stage('Clean') {
-        steps {
-            echo '🧹 Cleaning old build files...'
-            bat 'mvn clean'
-        }
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(
+            numToKeepStr: '10'
+        ))
     }
 
-    stage('Compile') {
-        steps {
-            echo '🔨 Compiling project...'
-            bat 'mvn compile'
-        }
+    triggers {
+        githubPush()
     }
 
-    stage('Unit Test') {
-        steps {
-            echo '🧪 Running tests...'
-            bat 'mvn test'
+    stages {
+
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
         }
-        post {
-            always {
-                junit allowEmptyResults: true,
-                      testResults: '**/target/surefire-reports/*.xml'
+
+        stage('Checkout Code') {
+            steps {
+                git(
+                    branch: 'main',
+                    credentialsId: 'github-pat',
+                    url: 'https://github.com/SanthoshiRavi/password-strength-detecter.git'
+                )
+            }
+        }
+
+        stage('Build Application') {
+            steps {
+                sh '''
+                    echo "Building Spring Boot application..."
+                    mvn clean package -DskipTests
+                '''
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh '''
+                    echo "Running tests..."
+                    mvn test
+                '''
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                    echo "Building Docker image..."
+                    docker build -t $DOCKER_IMAGE .
+                '''
+            }
+        }
+
+        stage('Docker Hub Login') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: "${DOCKERHUB_CREDS}",
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                sh '''
+                    echo "Pushing Docker image to Docker Hub..."
+                    docker push $DOCKER_IMAGE
+                '''
+            }
+        }
+
+        stage('Deploy to EC2') {
+            steps {
+
+                sshagent(credentials: ["${SSH_CREDENTIALS}"]) {
+
+                    sh '''
+                        echo "Deploying application to EC2..."
+
+                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << EOF
+
+                        docker pull ${DOCKER_IMAGE}
+
+                        docker stop ${APP_NAME} || true
+                        docker rm ${APP_NAME} || true
+
+                        docker run -d \
+                            --name ${APP_NAME} \
+                            -p 8080:8080 \
+                            --restart always \
+                            ${DOCKER_IMAGE}
+
+                        docker image prune -f
+
+                        echo "Deployment completed successfully!"
+
+EOF
+                    '''
+                }
             }
         }
     }
 
-    stage('SonarQube Analysis') {
-        steps {
-            echo '🔍 Running SonarQube analysis...'
-            withSonarQubeEnv('SonarQube') {
-                bat 'mvn sonar:sonar -Dsonar.projectKey=password-checker'
-            }
+    post {
+
+        success {
+            echo 'CI/CD Pipeline executed successfully!'
+        }
+
+        failure {
+            echo 'Pipeline failed. Check logs for details.'
+        }
+
+        always {
+            cleanWs()
         }
     }
-
-    stage('Quality Gate') {
-        steps {
-            echo '⏳ Waiting for Quality Gate result...'
-            timeout(time: 5, unit: 'MINUTES') {
-                waitForQualityGate abortPipeline: true
-            }
-        }
-    }
-
-    stage('Package') {
-        steps {
-            echo '📦 Packaging application JAR...'
-            bat 'mvn package -DskipTests'
-        }
-    }
-
-    stage('Archive Artifacts') {
-        steps {
-            echo '🗄️ Archiving JAR artifact...'
-            archiveArtifacts artifacts: "${JAR_PATH}",
-                             fingerprint: true,
-                             onlyIfSuccessful: true
-        }
-    }
-
-    stage('Docker Build') {
-        steps {
-            echo '🐳 Building Docker image...'
-            bat 'docker build -t %IMAGE_NAME%:%IMAGE_TAG% .'
-        }
-    }
-
-    stage('Docker Push') {
-        steps {
-            echo '🚀 Pushing Docker image to DockerHub...'
-            withCredentials([usernamePassword(
-                credentialsId: 'docker-creds',
-                usernameVariable: 'DOCKER_USER',
-                passwordVariable: 'DOCKER_PASS'
-            )]) {
-                bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
-                bat 'docker push %IMAGE_NAME%:%IMAGE_TAG%'
-            }
-        }
-    }
-
-    stage('Deploy') {
-        steps {
-            echo '🚀 Running Docker container locally...'
-            bat 'docker stop password-app || exit 0'
-            bat 'docker rm password-app || exit 0'
-            bat 'docker run -d -p 8081:8443 --name password-app %IMAGE_NAME%:%IMAGE_TAG%'
-        }
-    }
-
-    stage('Build Summary') {
-        steps {
-            echo "📌 Application : ${APP_NAME}"
-            echo "📌 Version     : ${APP_VERSION}"
-            echo "📌 Build No    : ${env.BUILD_NUMBER}"
-            echo "📌 Job Name    : ${env.JOB_NAME}"
-        }
-    }
-}
-
-post {
-
-    success {
-        echo '✅ BUILD SUCCESSFUL'
-    }
-
-    failure {
-        echo '❌ BUILD FAILED'
-    }
-
-    unstable {
-        echo '⚠️ BUILD UNSTABLE'
-    }
-
-    always {
-        echo '🧽 Cleaning Jenkins workspace...'
-        cleanWs()
-    }
-}
-
 }
