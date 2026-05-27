@@ -1,0 +1,13 @@
+.git
+.gitignore
+.idea
+*.iml
+.mvn
+mvnw
+mvnw.cmd
+src
+pom.xml
+README.md
+docs
+monitoring
+scripts

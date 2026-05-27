@@ -1,0 +1,63 @@
+# =========================
+# Maven
+# =========================
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# Keep Maven Wrapper
+.mvn/
+mvnw
+mvnw.cmd
+
+# =========================
+# IntelliJ IDEA
+# =========================
+.idea/
+*.iml
+out/
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# Spring Boot
+# =========================
+spring.log
+
+# =========================
+# Environment Variables
+# =========================
+.env
+.env.*
+
+# =========================
+# Application Secrets
+# =========================
+application-local.properties
+application-secret.properties
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Compiled Files
+# =========================
+*.class
+
+# =========================
+# Temporary Files
+# =========================
+*.tmp
+*.temp
+
+# =========================
+# Test Reports
+# =========================
+surefire-reports/
+failsafe-reports/
