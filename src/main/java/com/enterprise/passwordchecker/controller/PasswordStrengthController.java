@@ -4,6 +4,8 @@ import com.enterprise.passwordchecker.dto.*;
 import com.enterprise.passwordchecker.model.PasswordPolicy;
 import com.enterprise.passwordchecker.service.PasswordPolicyService;
 import com.enterprise.passwordchecker.service.PasswordStrengthService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -13,9 +15,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -31,13 +31,26 @@ import java.util.Collection;
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/password")
-@RequiredArgsConstructor
 @Tag(name = "Password Evaluation", description = "Core password strength analysis and scoring")
 public class PasswordStrengthController {
 
     private final PasswordStrengthService passwordStrengthService;
     private final PasswordPolicyService passwordPolicyService;
-    // Added for git push check
+    private final Counter passwordChecksCounter;
+
+    public PasswordStrengthController(
+            PasswordStrengthService passwordStrengthService,
+            PasswordPolicyService passwordPolicyService,
+            MeterRegistry meterRegistry
+    ) {
+        this.passwordStrengthService = passwordStrengthService;
+        this.passwordPolicyService = passwordPolicyService;
+
+        this.passwordChecksCounter = Counter.builder("password_checks_total")
+                .description("Total number of password strength checks")
+                .register(meterRegistry);
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Single Evaluation
     // ─────────────────────────────────────────────────────────────────────────
@@ -45,7 +58,7 @@ public class PasswordStrengthController {
     @Operation(
             summary = "Evaluate password strength",
             description = """
-                    Evaluates a single password against a configurable policy and returns a 
+                    Evaluates a single password against a configurable policy and returns a
                     comprehensive strength report including:
                     - Composite score (0–100)
                     - Strength classification (VERY_WEAK → VERY_STRONG)
@@ -53,8 +66,8 @@ public class PasswordStrengthController {
                     - Actionable improvement suggestions
                     - Character composition breakdown
                     - Estimated crack times (zxcvbn-powered)
-                    
-                    **Security**: Passwords are evaluated in-memory and never logged or persisted.
+
+                    Security: Passwords are evaluated in-memory and never logged or persisted.
                     """,
             tags = {"Password Evaluation"}
     )
@@ -80,7 +93,9 @@ public class PasswordStrengthController {
                                               "error": "VALIDATION_ERROR",
                                               "message": "Password must not be blank",
                                               "path": "/api/v1/password/check",
-                                              "fieldErrors": { "password": "must not be blank" }
+                                              "fieldErrors": {
+                                                "password": "must not be blank"
+                                              }
                                             }
                                             """
                             )
@@ -94,7 +109,8 @@ public class PasswordStrengthController {
             produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<PasswordStrengthResponse> checkPassword(
-            @Valid @RequestBody
+            @Valid
+            @RequestBody
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "Password evaluation request",
                     required = true,
@@ -115,8 +131,15 @@ public class PasswordStrengthController {
             )
             PasswordCheckRequest request
     ) {
-        log.info("POST /api/v1/password/check policyId={}", request.getPolicyId());
-        PasswordStrengthResponse response = passwordStrengthService.evaluate(request);
+
+        passwordChecksCounter.increment();
+
+        log.info("POST /api/v1/password/check policyId={}",
+                request.getPolicyId());
+
+        PasswordStrengthResponse response =
+                passwordStrengthService.evaluate(request);
+
         return ResponseEntity.ok(response);
     }
 
@@ -127,12 +150,10 @@ public class PasswordStrengthController {
     @Operation(
             summary = "Bulk password evaluation",
             description = """
-                    Evaluates up to 50 passwords in a single request. Returns individual 
-                    results alongside aggregated metrics including average score, 
-                    policy compliance rate, and strength distribution.
-                    
-                    Useful for audit workflows, new-user onboarding validation, and 
-                    security posture assessments.
+                    Evaluates up to 50 passwords in a single request.
+                    Returns individual results alongside aggregated metrics
+                    including average score, policy compliance rate,
+                    and strength distribution.
                     """,
             tags = {"Bulk Operations"}
     )
@@ -147,8 +168,10 @@ public class PasswordStrengthController {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Validation error (e.g. batch size > 50)",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    description = "Validation error",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
             )
     })
     @PostMapping(
@@ -160,9 +183,14 @@ public class PasswordStrengthController {
     public ResponseEntity<BulkPasswordStrengthResponse> checkBulk(
             @Valid @RequestBody BulkPasswordCheckRequest request
     ) {
+
         log.info("POST /api/v1/password/check/bulk count={}, policyId={}",
-                request.getPasswords().size(), request.getPolicyId());
-        BulkPasswordStrengthResponse response = passwordStrengthService.evaluateBulk(request);
+                request.getPasswords().size(),
+                request.getPolicyId());
+
+        BulkPasswordStrengthResponse response =
+                passwordStrengthService.evaluateBulk(request);
+
         return ResponseEntity.ok(response);
     }
 
@@ -172,18 +200,25 @@ public class PasswordStrengthController {
 
     @Operation(
             summary = "List available password policies",
-            description = "Returns all registered password policy presets with their rule configurations.",
+            description = "Returns all registered password policy presets.",
             tags = {"Policy Management"}
     )
     @ApiResponse(
             responseCode = "200",
             description = "Policy list retrieved successfully"
     )
-    @GetMapping(value = "/policies", produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(
+            value = "/policies",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
     @Tag(name = "Policy Management")
     public ResponseEntity<Collection<PasswordPolicy>> listPolicies() {
+
         log.debug("GET /api/v1/password/policies");
-        return ResponseEntity.ok(passwordPolicyService.listPolicies());
+
+        return ResponseEntity.ok(
+                passwordPolicyService.listPolicies()
+        );
     }
 
     @Operation(
@@ -193,44 +228,79 @@ public class PasswordStrengthController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Policy found"),
-            @ApiResponse(responseCode = "404", description = "Policy not found",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Policy not found",
+                    content = @Content(
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
     })
-    @GetMapping(value = "/policies/{policyId}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(
+            value = "/policies/{policyId}",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
     @Tag(name = "Policy Management")
     public ResponseEntity<PasswordPolicy> getPolicy(
-            @Parameter(description = "Policy identifier", example = "ENTERPRISE_DEFAULT",
-                       schema = @Schema(allowableValues = {"ENTERPRISE_DEFAULT", "LEGACY", "PRIVILEGED"}))
+            @Parameter(
+                    description = "Policy identifier",
+                    example = "ENTERPRISE_DEFAULT"
+            )
             @PathVariable String policyId
     ) {
+
         log.debug("GET /api/v1/password/policies/{}", policyId);
-        PasswordPolicy policy = passwordPolicyService.resolve(policyId);
+
+        PasswordPolicy policy =
+                passwordPolicyService.resolve(policyId);
+
         return ResponseEntity.ok(policy);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Health Check (supplemental — Actuator is the canonical health endpoint)
+    // Health Check
     // ─────────────────────────────────────────────────────────────────────────
 
     @Operation(
             summary = "API health check",
-            description = "Lightweight liveness probe for load balancers and monitoring systems.",
+            description = "Lightweight liveness probe.",
             tags = {"Health & Metrics"}
     )
-    @ApiResponse(responseCode = "200", description = "Service is healthy")
-    @GetMapping(value = "/health", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ApiResponse(
+            responseCode = "200",
+            description = "Service is healthy"
+    )
+    @GetMapping(
+            value = "/health",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
     @Tag(name = "Health & Metrics")
     public ResponseEntity<HealthResponse> health() {
-        return ResponseEntity.ok(new HealthResponse("UP", "Password Strength Checker API is running"));
+
+        return ResponseEntity.ok(
+                new HealthResponse(
+                        "UP",
+                        "Password Strength Checker API is running"
+                )
+        );
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Inner record for health endpoint
+    // Health Response
     // ─────────────────────────────────────────────────────────────────────────
 
     @Schema(description = "API health status")
     public record HealthResponse(
-            @Schema(description = "Status code", example = "UP") String status,
-            @Schema(description = "Descriptive message") String message
+
+            @Schema(
+                    description = "Status code",
+                    example = "UP"
+            )
+            String status,
+
+            @Schema(
+                    description = "Descriptive message"
+            )
+            String message
     ) {}
 }
