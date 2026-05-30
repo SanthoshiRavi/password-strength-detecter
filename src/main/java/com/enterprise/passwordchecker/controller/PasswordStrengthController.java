@@ -38,6 +38,7 @@ public class PasswordStrengthController {
     private final PasswordPolicyService passwordPolicyService;
     private final Counter passwordChecksCounter;
 
+    //Constructor
     public PasswordStrengthController(
             PasswordStrengthService passwordStrengthService,
             PasswordPolicyService passwordPolicyService,
